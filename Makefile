@@ -1,2 +1,2 @@
 local:
-	go run ./app
+	go run ./app 
