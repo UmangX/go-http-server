@@ -1,28 +1,24 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
 	"strings"
 )
 
-// Ensures gofmt doesn't remove the "net" and "os" imports above (feel free to remove this!)
 var _ = net.Listen
 var _ = os.Exit
 
-//HTTP/1.1 404 Not Found\r\n\r\n
-
 func main() {
 	fmt.Println("Logs from your program will appear here!")
-	fmt.Printf("\n")
-	fmt.Printf("-----------------------------------------\n")
-	fmt.Printf("\n")
+	fmt.Println("-----------------------------------------")
 
-	line, _ := net.Listen("tcp", ":4221")
+	listener, _ := net.Listen("tcp", ":4221")
 	for {
-		conn, _ := line.Accept()
-		go betterhandle(conn)
+		conn, _ := listener.Accept()
+		go handleConn(conn)
 	}
 }
 
@@ -40,57 +36,64 @@ func writeResponse(conn net.Conn, statusCode int, body string) {
 	conn.Write([]byte(response))
 }
 
-func betterhandle(conn net.Conn) {
+func handleConn(conn net.Conn) {
 	defer conn.Close()
-	buf := make([]byte, 2048)
-	conn.Read(buf)
 
-	// so the buff is the request done by the client
-	buffer_content := string(buf)
+	reader := bufio.NewReader(conn)
 
-	//content lines is the content seperated through \n
-	content_lines := strings.Split(buffer_content, "\n")
-
-	//for _, val := range content_lines {
-	//fmt.Println(val)
-	//}
-
-	// there is the things which is need here
-	// request type / url / header_data which is provided
-	request_info := strings.Split(content_lines[0], " ")
-	request_type := request_info[0]
-	request_url_seperated := strings.Split(request_info[1], "/")
-	request_url := request_url_seperated[1]
-
-	if request_type == "GET" && request_url == "user-agent" {
-		user_agent := ""
-		for _, line := range content_lines {
-			if strings.HasPrefix(strings.ToLower(line), "user-agent:") {
-				parts := strings.SplitN(line, ":", 2)
-				if len(parts) == 2 {
-					user_agent = strings.TrimSpace(parts[1])
-				}
-				break
-			}
-		}
-		writeResponse(conn, 200, user_agent)
+	// Read request line
+	requestLine, err := reader.ReadString('\n')
+	if err != nil {
+		writeResponse(conn, 404, " ")
+		return
+	}
+	requestLine = strings.TrimSpace(requestLine)
+	parts := strings.Split(requestLine, " ")
+	if len(parts) < 2 {
+		writeResponse(conn, 404, " ")
 		return
 	}
 
-	if request_type == "GET" && request_url == "echo" {
+	method := parts[0]
+	path := parts[1]
 
-		if len(request_url_seperated) != 3 {
-			writeResponse(conn, 200, " ")
-			return
+	// Read headers
+	headers := make(map[string]string)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			break
 		}
-		writeResponse(conn, 200, request_url_seperated[2])
-		return
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break // End of headers
+		}
+		headerParts := strings.SplitN(line, ":", 2)
+		if len(headerParts) == 2 {
+			key := strings.ToLower(strings.TrimSpace(headerParts[0]))
+			value := strings.TrimSpace(headerParts[1])
+			headers[key] = value
+		}
 	}
 
-	if request_url == "/" {
+	// Handle requests
+	if method == "GET" && path == "/" {
 		writeResponse(conn, 200, "hello")
+		return
+	}
+
+	if method == "GET" && strings.HasPrefix(path, "/echo/") {
+		echoed := strings.TrimPrefix(path, "/echo/")
+		writeResponse(conn, 200, echoed)
+		return
+	}
+
+	if method == "GET" && path == "/user-agent" {
+		userAgent := headers["user-agent"]
+		writeResponse(conn, 200, userAgent)
 		return
 	}
 
 	writeResponse(conn, 404, " ")
 }
+
