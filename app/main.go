@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -22,6 +23,28 @@ func main() {
 	}
 }
 
+func generate_content_respone(content string) string {
+
+	if content == " " {
+		response := "HTTP/1.1 200 OK\r\n" +
+			"Content-Type: text/plain\r\n" +
+			"Content-Length: 0\r\n" +
+			"\r\n" +
+			""
+		return response
+	}
+
+	response := "HTTP/1.1 200 OK\r\n" +
+		"Content-Type: text/plain\r\n" +
+		"Content-Length: " + strconv.Itoa(len(content)) + "\r\n" +
+		"\r\n" + content
+
+	fmt.Printf(response)
+
+	return response
+
+}
+
 func HandleConn(conn net.Conn) {
 	defer conn.Close()
 
@@ -31,17 +54,29 @@ func HandleConn(conn net.Conn) {
 
 	content := string(buffer)
 	lines := strings.Split(content, "\n")
-	// lines has all the line or something else
-	fmt.Println("request from the client")
+
+	// when this strings is done will work on using the direct bytes for this
+	//req_type := strings.Split(lines[0], " ")[0]
+	url_text := strings.Split(lines[0], " ")[1]
+
+	lines = strings.Split(url_text, "/")
 	for _, val := range lines {
-		fmt.Println(val)
+		fmt.Printf("%s \n", val)
+	}
+	if lines[1] == "echo" {
+		fmt.Printf("this is the echo link with /%v \n", lines[2])
+		follow_up := lines[2]
+		urlstr := lines[2][1:]
+		if follow_up == "/" {
+			conn.Write([]byte(generate_content_respone(" ")))
+			return
+		} else {
+			conn.Write([]byte(generate_content_respone(urlstr)))
+			return
+		}
 	}
 
-	//this is some fine work here
-	// when this strings is done will work on using the direct bytes for this
-	req_type := strings.Split(lines[0], " ")[0]
-	url_text := strings.Split(lines[0], " ")[1]
-	fmt.Printf("req type %v  url_text %v", req_type, url_text)
+	//fmt.Printf("req type %v  url_text %v len for the lines in url_text : %v  this is the first in lines : %v \n", req_type, url_text, len(lines), lines[0])
 	// this 'response' is a plain and simple string that is send when req is valid
 
 	response200 := "HTTP/1.1 200 OK\r\n" +
@@ -56,10 +91,12 @@ func HandleConn(conn net.Conn) {
 		"\r\n" +
 		"Hello, world!"
 
-	if url_text == "/" {
+	switch link := url_text; link {
+	case "/":
 		conn.Write([]byte(response200))
-	} else {
+	case "/echo": //this will not work as the link has /{str} system
+		fmt.Println("hello world")
+	default:
 		conn.Write([]byte(response404))
 	}
-
 }
