@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -16,93 +15,82 @@ var _ = os.Exit
 
 func main() {
 	fmt.Println("Logs from your program will appear here!")
+	fmt.Printf("\n")
+	fmt.Printf("-----------------------------------------\n")
+	fmt.Printf("\n")
+
 	line, _ := net.Listen("tcp", ":4221")
 	for {
 		conn, _ := line.Accept()
-		go HandleConn(conn)
+		go betterhandle(conn)
 	}
 }
 
-func generate_content_respone(content string) string {
+func writeResponse(conn net.Conn, statusCode int, body string) {
+	statusText := map[int]string{
+		200: "OK",
+		404: "Not Found",
+	}[statusCode]
 
-	if content == " " {
-		response := "HTTP/1.1 200 OK\r\n" +
-			"Content-Type: text/plain\r\n" +
-			"Content-Length: 0\r\n" +
-			"\r\n" +
-			""
-		return response
-	}
+	response := fmt.Sprintf(
+		"HTTP/1.1 %d %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+		statusCode, statusText, len(body), body,
+	)
 
-	response := "HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: " + strconv.Itoa(len(content)) + "\r\n" +
-		"\r\n" + content
-
-	fmt.Printf(response)
-
-	return response
-
+	conn.Write([]byte(response))
 }
 
-func HandleConn(conn net.Conn) {
+func betterhandle(conn net.Conn) {
 	defer conn.Close()
+	buf := make([]byte, 2048)
+	conn.Read(buf)
 
-	// this is the buffer for the data that the client is sending
-	buffer := make([]byte, 2048)
-	conn.Read(buffer)
+	// so the buff is the request done by the client
+	buffer_content := string(buf)
 
-	content := string(buffer)
+	//content lines is the content seperated through \n
+	content_lines := strings.Split(buffer_content, "\n")
 
-	// this line is the main content seperate through new line
-	lines := strings.Split(content, "\n")
+	//for _, val := range content_lines {
+	//fmt.Println(val)
+	//}
 
-	// when this strings is done will work on using the direct bytes for this
-	//req_type := strings.Split(lines[0], " ")[0]
-	url_text := strings.Split(lines[0], " ")[1]
+	// there is the things which is need here
+	// request type / url / header_data which is provided
+	request_info := strings.Split(content_lines[0], " ")
+	request_type := request_info[0]
+	request_url_seperated := strings.Split(request_info[1], "/")
+	request_url := request_url_seperated[1]
 
-	url_lines := strings.Split(url_text, "/")
-	if lines[1] == "echo" {
-		//fmt.Printf("this is the echo link with /%v \n", lines[2])
-		follow_up := url_lines[2]
-		urlstr := url_lines[2][0:]
-		if follow_up == "/" {
-			conn.Write([]byte(generate_content_respone(" ")))
-			return
-		} else {
-			conn.Write([]byte(generate_content_respone(urlstr)))
+	if request_type == "GET" && request_url == "user-agent" {
+		user_agent := ""
+		for _, line := range content_lines {
+			if strings.HasPrefix(strings.ToLower(line), "user-agent:") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					user_agent = strings.TrimSpace(parts[1])
+				}
+				break
+			}
+		}
+		writeResponse(conn, 200, user_agent)
+		return
+	}
+
+	if request_type == "GET" && request_url == "echo" {
+
+		if len(request_url_seperated) != 3 {
+			writeResponse(conn, 200, " ")
 			return
 		}
+		writeResponse(conn, 200, request_url_seperated[2])
+		return
 	}
 
-	// write for the header actions
-	if url_lines[1] == "user-agent" {
-		user_agent := strings.Split(lines[3], ":")[1]
-		fmt.Println(user_agent)
-		conn.Write([]byte(generate_content_respone(user_agent)))
+	if request_url == "/" {
+		writeResponse(conn, 200, "hello")
+		return
 	}
 
-	//fmt.Printf("req type %v  url_text %v len for the lines in url_text : %v  this is the first in lines : %v \n", req_type, url_text, len(lines), lines[0])
-	// this 'response' is a plain and simple string that is send when req is valid
-
-	response200 := "HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: 13\r\n" +
-		"\r\n" +
-		"Hello, world!"
-
-	response404 := "HTTP/1.1 404 Not Found\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: 13\r\n" +
-		"\r\n" +
-		"Hello, world!"
-
-	switch link := url_text; link {
-	case "/":
-		conn.Write([]byte(response200))
-	case "/echo": //this will not work as the link has /{str} system
-		fmt.Println("hello world")
-	default:
-		conn.Write([]byte(response404))
-	}
+	writeResponse(conn, 404, " ")
 }
