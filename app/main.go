@@ -60,13 +60,10 @@ func HandleConn(conn net.Conn) {
 	url_text := strings.Split(lines[0], " ")[1]
 
 	lines = strings.Split(url_text, "/")
-	for _, val := range lines {
-		fmt.Printf("%s \n", val)
-	}
 	if lines[1] == "echo" {
-		fmt.Printf("this is the echo link with /%v \n", lines[2])
+		//fmt.Printf("this is the echo link with /%v \n", lines[2])
 		follow_up := lines[2]
-		urlstr := lines[2][1:]
+		urlstr := lines[2][0:]
 		if follow_up == "/" {
 			conn.Write([]byte(generate_content_respone(" ")))
 			return
