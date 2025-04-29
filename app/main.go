@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -19,12 +20,10 @@ func main() {
 
 	args := os.Args
 	if len(args) > 1 {
-		for index, val := range args {
-			fmt.Printf("index : %v argument : %v \n", index, val)
-		}
 		if args[1] == "--directory" {
 			file_path = args[2]
 		}
+		fmt.Printf("%s using this for file directory\n", file_path)
 	}
 
 	listener, _ := net.Listen("tcp", ":4221")
@@ -56,6 +55,7 @@ func writeResponseforfile(conn net.Conn, body string) {
 func handleConn(conn net.Conn) {
 	defer conn.Close()
 
+	// this is pure byte for the request
 	reader := bufio.NewReader(conn)
 
 	// this is for the lines which are the requests
@@ -121,6 +121,24 @@ func handleConn(conn net.Conn) {
 	if method == "GET" && path == "/user-agent" {
 		userAgent := headers["user-agent"]
 		writeResponse(conn, 200, userAgent)
+		return
+	}
+
+	if method == "POST" && strings.HasPrefix(path, "/files/") {
+		buffer := make([]byte, reader.Size())
+		_, err := reader.Read(buffer)
+		if err != nil {
+			panic(err)
+		}
+
+		content_length := headers["content-length"]
+		length, err := strconv.Atoi(content_length)
+		file_name := strings.TrimPrefix(path, "/files/")
+		err = os.WriteFile(file_path+file_name, buffer[:length], 0644)
+		if err != nil {
+			panic(err)
+		}
+		conn.Write([]byte("HTTP/1.1 201 Created\r\n\r\n"))
 		return
 	}
 

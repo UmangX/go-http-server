@@ -1,5 +1,7 @@
 run:
-	go run ./app --directory /files/
+	go run ./app --directory ./files/
+post:
+	curl -v --data "12345" -H "Content-Type: application/octet-stream" http://localhost:4221/files/file_123
 file:
 		echo 'Hlo, World!' > /tmp/sd & curl -i http://localhost:4221/files/sd
 empty:
