@@ -102,7 +102,17 @@ func handleConn(conn net.Conn) {
 	}
 
 	if method == "GET" && strings.HasPrefix(path, "/echo/") {
+
 		echoed := strings.TrimPrefix(path, "/echo/")
+		// Content-Encoding: gzip
+		if headers["accept-encoding"] == "gzip" {
+			response := fmt.Sprintf(
+				"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: %d\r\n\r\n%s",
+				len(echoed), echoed)
+			conn.Write([]byte(response))
+			return
+		}
+
 		writeResponse(conn, 200, echoed)
 		return
 	}
