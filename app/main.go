@@ -11,10 +11,21 @@ import (
 
 var _ = net.Listen
 var _ = os.Exit
+var file_path = "files"
 
 func main() {
 	fmt.Println("Logs from your program will appear here!")
 	fmt.Println("-----------------------------------------")
+
+	args := os.Args
+	if len(args) > 1 {
+		for index, val := range args {
+			fmt.Printf("index : %v argument : %v \n", index, val)
+		}
+		if args[1] == "--directory" {
+			file_path = args[2]
+		}
+	}
 
 	listener, _ := net.Listen("tcp", ":4221")
 	for {
@@ -98,8 +109,8 @@ func handleConn(conn net.Conn) {
 
 	if method == "GET" && strings.HasPrefix(path, "/files/") {
 		file_name := strings.TrimPrefix(path, "/files/")
-		if checkfileexist("./tmp/" + file_name) {
-			file_content, _ := os.ReadFile("./tmp/" + file_name)
+		if checkfileexist(file_path + file_name) {
+			file_content, _ := os.ReadFile(file_path + file_name)
 			writeResponseforfile(conn, string(file_content))
 			return
 		}
