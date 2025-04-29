@@ -43,12 +43,13 @@ func main() {
 }
 
 func handleConn(conn net.Conn) {
-	defer conn.Close()
+	defer conn.Close() // Ensure the connection is closed when done
 	reader := bufio.NewReader(conn)
 
 	for {
-		conn.SetReadDeadline(noTimeout())
+		conn.SetReadDeadline(noTimeout()) // No timeout, blocking until request is received
 
+		// Read the request line
 		requestLine, err := reader.ReadString('\n')
 		if err != nil {
 			if err != io.EOF {
@@ -59,7 +60,7 @@ func handleConn(conn net.Conn) {
 		requestLine = strings.TrimSpace(requestLine)
 		parts := strings.Split(requestLine, " ")
 		if len(parts) < 2 {
-			writeResponse(conn, 400, "Bad Request", nil)
+			writeResponse(conn, 400, "Bad Request", nil, false) // 400 for bad request
 			return
 		}
 		method, path := parts[0], parts[1]
@@ -74,7 +75,7 @@ func handleConn(conn net.Conn) {
 			}
 			line = strings.TrimSpace(line)
 			if line == "" {
-				break
+				break // End of headers
 			}
 			parts := strings.SplitN(line, ":", 2)
 			if len(parts) == 2 {
@@ -82,18 +83,21 @@ func handleConn(conn net.Conn) {
 			}
 		}
 
+		// Check if the connection should be closed after the response
+		connectionClose := strings.Contains(strings.ToLower(headers["connection"]), "close")
+
 		// Handle routes
 		switch {
 		case method == "GET" && path == "/":
-			writeResponse(conn, 200, "OK", []byte("hello"))
+			writeResponse(conn, 200, "OK", []byte("hello"), connectionClose)
 
 		case method == "GET" && strings.HasPrefix(path, "/echo/"):
 			message := strings.TrimPrefix(path, "/echo/")
 			if acceptsGzip(headers["accept-encoding"]) {
 				body, _ := gzipCompress([]byte(message))
-				writeRawResponse(conn, 200, "text/plain", body, map[string]string{"Content-Encoding": "gzip"})
+				writeRawResponse(conn, 200, "text/plain", body, map[string]string{"Content-Encoding": "gzip"}, connectionClose)
 			} else {
-				writeResponse(conn, 200, "OK", []byte(message))
+				writeResponse(conn, 200, "OK", []byte(message), connectionClose)
 			}
 
 		case method == "GET" && strings.HasPrefix(path, "/files/"):
@@ -101,9 +105,9 @@ func handleConn(conn net.Conn) {
 			fullPath := filepath.Join(filePath, filename)
 			data, err := os.ReadFile(fullPath)
 			if err != nil {
-				writeResponse(conn, 404, "Not Found", nil)
+				writeResponse(conn, 404, "Not Found", nil, connectionClose)
 			} else {
-				writeRawResponse(conn, 200, "application/octet-stream", data, nil)
+				writeRawResponse(conn, 200, "application/octet-stream", data, nil, connectionClose)
 			}
 
 		case method == "POST" && strings.HasPrefix(path, "/files/"):
@@ -114,21 +118,26 @@ func handleConn(conn net.Conn) {
 			_, err := io.ReadFull(reader, body)
 			if err != nil {
 				fmt.Println("Error reading POST body:", err)
-				writeResponse(conn, 500, "Internal Server Error", nil)
+				writeResponse(conn, 500, "Internal Server Error", nil, connectionClose)
 				return
 			}
 			err = os.WriteFile(fullPath, body, 0644)
 			if err != nil {
-				writeResponse(conn, 500, "Internal Server Error", nil)
+				writeResponse(conn, 500, "Internal Server Error", nil, connectionClose)
 			} else {
-				writeResponse(conn, 201, "Created", nil)
+				writeResponse(conn, 201, "Created", nil, connectionClose)
 			}
 
 		case method == "GET" && path == "/user-agent":
-			writeResponse(conn, 200, "OK", []byte(headers["user-agent"]))
+			writeResponse(conn, 200, "OK", []byte(headers["user-agent"]), connectionClose)
 
 		default:
-			writeResponse(conn, 404, "Not Found", nil)
+			writeResponse(conn, 404, "Not Found", nil, connectionClose)
+		}
+
+		// Close connection if "Connection: close" is present
+		if connectionClose {
+			return
 		}
 	}
 }
@@ -145,12 +154,14 @@ func gzipCompress(data []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// writeResponse writes a plain text HTTP response
-func writeResponse(conn net.Conn, status int, statusText string, body []byte) {
-	if body == nil {
-		body = []byte{}
+func writeResponse(conn net.Conn, statusCode int, statusText string, body []byte, connectionClose bool) {
+	response := fmt.Sprintf("HTTP/1.1 %d %s\r\n", statusCode, statusText)
+	if connectionClose {
+		response += "Connection: close\r\n"
 	}
-	writeRawResponse(conn, status, "text/plain", body, nil)
+	response += fmt.Sprintf("Content-Length: %d\r\n\r\n", len(body))
+	conn.Write([]byte(response))
+	conn.Write(body)
 }
 
 // writeRawResponse writes a full HTTP response with optional headers
