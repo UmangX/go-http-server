@@ -1,5 +1,7 @@
 run:
 	go run ./app 
+file:
+		echo 'Hlo, World!' > /tmp/sd & curl -i http://localhost:4221/files/sd
 empty:
 	curl -v http://localhost:4221/echo/hello
 test:
