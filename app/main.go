@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strings"
@@ -99,12 +98,8 @@ func handleConn(conn net.Conn) {
 
 	if method == "GET" && strings.HasPrefix(path, "/files/") {
 		file_name := strings.TrimPrefix(path, "/files/")
-		if checkfileexist("/tmp/" + file_name) {
-			fmt.Printf("this file is present")
-			file_content, _ := os.ReadFile("/tmp/" + file_name)
-			if err != nil {
-				log.Fatal(err)
-			}
+		if checkfileexist("./tmp/" + file_name) {
+			file_content, _ := os.ReadFile("./tmp/" + file_name)
 			writeResponseforfile(conn, string(file_content))
 			return
 		}
