@@ -104,8 +104,23 @@ func handleConn(conn net.Conn) {
 	if method == "GET" && strings.HasPrefix(path, "/echo/") {
 
 		echoed := strings.TrimPrefix(path, "/echo/")
-		// Content-Encoding: gzip
+
+		var checker bool = false
+		multienco := strings.Split(headers["accept-encoding"], ", ")
+		fmt.Printf("this is the multienco %s", multienco)
+		if len(multienco) > 1 {
+			for _, v := range multienco {
+				if v == "gzip" {
+					checker = true
+				}
+			}
+		}
+
 		if headers["accept-encoding"] == "gzip" {
+			checker = true
+		}
+
+		if checker {
 			response := fmt.Sprintf(
 				"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: %d\r\n\r\n%s",
 				len(echoed), echoed)
