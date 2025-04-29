@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"errors"
 	"fmt"
 	"net"
@@ -121,9 +123,10 @@ func handleConn(conn net.Conn) {
 		}
 
 		if checker {
+			val, _ := GzipCompress(echoed)
 			response := fmt.Sprintf(
 				"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: %d\r\n\r\n%s",
-				len(echoed), echoed)
+				len(val), val)
 			conn.Write([]byte(response))
 			return
 		}
@@ -168,6 +171,21 @@ func handleConn(conn net.Conn) {
 	}
 
 	writeResponse(conn, 404, " ")
+}
+func GzipCompress(str string) (string, error) {
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+
+	_, err := zw.Write([]byte(str))
+	if err != nil {
+		return "", err
+	}
+
+	if err := zw.Close(); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }
 
 func checkfileexist(filepath string) bool {

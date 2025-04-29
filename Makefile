@@ -1,7 +1,7 @@
 run:
 	go run ./app --directory ./files/
 gzip:
-	curl -v -H "Accept-Encoding: invalid-encoding-1,invalid-encoding-2" http://localhost:4221/echo/abc
+	curl -v -H "Accept-Encoding: invalid-encoding-1, gzip, invalid-encoding-2" http://localhost:4221/echo/abc
 post:
 	curl -v --data "12345" -H "Content-Type: application/octet-stream" http://localhost:4221/files/file_123
 file:
